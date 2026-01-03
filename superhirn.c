@@ -1,7 +1,9 @@
-#include <furi.h>
-#include <gui/gui.h>
-#include <input/input.h>
-#include <stdlib.h>
+#include <furi.h>          // Core Flipper Zero system library
+#include <gui/gui.h>       // GUI system for display rendering
+#include <input/input.h>   // GUI elements library for button hints and UI components
+#include <gui/elements.h>  // Input handling for button events
+#include <stdlib.h>        // Standard library for rand(), malloc(), etc.
+#include <mitzi_mens_magistra_icons.h>
 
 #define COLOR_REPEAT false  // Whether colors can repeat in the secret code
 #define NUM_COLORS 6        // Number of available colors
@@ -83,6 +85,20 @@ static bool is_guess_complete(CodeBreakerState* state) {
     return true;
 }
 
+// Check if current guess is different from previous guess
+static bool is_guess_different(CodeBreakerState* state) {
+    if(state->attempts_used == 0) {
+        return true;  // First guess is always different
+    }
+    
+    for(int i = 0; i < NUM_PEGS; i++) {
+        if(state->current_guess[i] != state->guess_history[state->attempts_used - 1][i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Evaluate the current guess and provide feedback
 static void evaluate_guess(CodeBreakerState* state) {
     bool secret_used[NUM_PEGS] = {false};
@@ -138,13 +154,8 @@ static void evaluate_guess(CodeBreakerState* state) {
     } else if(state->attempts_used >= MAX_ATTEMPTS) {
         state->state = STATE_LOST;
         state->elapsed_time += furi_get_tick() - state->start_time;
-    } else {
-        // Reset current guess for next attempt
-        for(int i = 0; i < NUM_PEGS; i++) {
-            state->current_guess[i] = COLOR_NONE;
-        }
-        state->cursor_position = 0;
     }
+    // Don't reset guess - keep previous colors for next attempt
 }
 
 // Draw a filled circle with pattern
@@ -245,6 +256,11 @@ static void draw_callback(Canvas* canvas, void* ctx) {
     canvas_clear(canvas);
     canvas_set_font(canvas, FontSecondary);
     
+	// Draw header with icon and title
+    canvas_set_font(canvas, FontPrimary);
+	canvas_draw_icon(canvas, 1, 1, &I_icon_10x10);	
+	canvas_draw_str_aligned(canvas, 12, 1, AlignLeft, AlignTop, "Mens Magistra");
+	
     // Draw HUD (top right)
     char time_str[16];
     uint32_t total_time;
@@ -257,11 +273,11 @@ static void draw_callback(Canvas* canvas, void* ctx) {
     uint32_t minutes = seconds / 60;
     seconds = seconds % 60;
     snprintf(time_str, sizeof(time_str), "T: %03lu:%02lu", minutes, seconds);
-    canvas_draw_str(canvas, 90, 8, time_str);
+    canvas_draw_str(canvas, 85, 7, time_str);
     
     char attempts_str[16];
     snprintf(attempts_str, sizeof(attempts_str), "A: %d(%d)", state->attempts_used, MAX_ATTEMPTS);
-    canvas_draw_str(canvas, 90, 18, attempts_str);
+    canvas_draw_str(canvas, 85, 16, attempts_str);
     
     // Draw current guess area
     int guess_y = 30;
@@ -322,9 +338,14 @@ static void draw_callback(Canvas* canvas, void* ctx) {
         }
     }
     
-    // Draw navigation hints
-    canvas_set_font(canvas, FontSecondary);
-    if(state->state == STATE_PLAYING && is_guess_complete(state)) {
+	// Version info
+	canvas_set_font(canvas, FontSecondary);
+    canvas_draw_str_aligned(canvas, 99, 55, AlignLeft, AlignBottom, "v0.1");    
+	// Draw navigation hint
+	canvas_draw_icon(canvas, 121, 57, &I_back);
+	canvas_draw_str_aligned(canvas, 120, 63, AlignRight, AlignBottom, "Pause");
+
+    if(state->state == STATE_PLAYING && is_guess_complete(state) && is_guess_different(state)) {
         elements_button_center(canvas, "OK");
     } else if(state->state == STATE_PAUSED) {
         elements_button_center(canvas, "Resume");
@@ -355,6 +376,7 @@ int32_t superhirn_main(void* p) {
     state->start_time = furi_get_tick();
     state->elapsed_time = 0;
     
+    // Only initially empty - after first guess, colors persist
     for(int i = 0; i < NUM_PEGS; i++) {
         state->current_guess[i] = COLOR_NONE;
     }
@@ -408,7 +430,7 @@ int32_t superhirn_main(void* p) {
                     if(current < COLOR_NONE) current = NUM_COLORS;
                     state->current_guess[state->cursor_position] = current;
                 } else if(event.key == InputKeyOk) {
-                    if(state->state == STATE_PLAYING && is_guess_complete(state)) {
+                    if(state->state == STATE_PLAYING && is_guess_complete(state) && is_guess_different(state)) {
                         evaluate_guess(state);
                     } else if(state->state == STATE_PAUSED) {
                         state->state = STATE_PLAYING;
