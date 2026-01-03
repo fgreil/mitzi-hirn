@@ -1,16 +1,19 @@
 #include <furi.h>          // Core Flipper Zero system library
 #include <gui/gui.h>       // GUI system for display rendering
-#include <input/input.h>   // GUI elements library for button hints and UI components
-#include <gui/elements.h>  // Input handling for button events
+#include <input/input.h>   // Input handling for button events
+#include <gui/elements.h>  // GUI elements library for button hints and UI components
 #include <stdlib.h>        // Standard library for rand(), malloc(), etc.
+#include <math.h>
 #include <mitzi_mens_magistra_icons.h>
 
 #define COLOR_REPEAT false  // Whether colors can repeat in the secret code
-#define NUM_COLORS 6        // Number of available colors
+#define NUM_COLORS 4        // Number of available colors
 #define NUM_PEGS 4          // Number of pegs in the code
-#define MAX_ATTEMPTS 12     // Maximum number of guessing attempts
+#define MAX_ATTEMPTS 99     // Maximum number of guessing attempts
 #define PEG_RADIUS 10       // Radius of main pegs (20px diameter)
 #define FEEDBACK_RADIUS 3   // Radius of feedback pegs
+#define HUD_X_POSITION 90   // X position for HUD (timer and attempts counter)
+#define MAX_TIME_MS (90 * 60 * 1000)  // Maximum time: 90 minutes in milliseconds
 
 // Color patterns (fill styles)
 typedef enum {
@@ -135,7 +138,7 @@ static void evaluate_guess(CodeBreakerState* state) {
     // Check for win condition (all black pegs)
     bool won = true;
     for(int i = 0; i < NUM_PEGS; i++) {
-        if(state->feedback_history[state->attempts_used][i] != FEEDBACK_BLACK) {
+        if(state->current_guess[i] != state->secret_code[i]) {
             won = false;
             break;
         }
@@ -260,24 +263,26 @@ static void draw_callback(Canvas* canvas, void* ctx) {
     canvas_set_font(canvas, FontPrimary);
 	canvas_draw_icon(canvas, 1, 1, &I_icon_10x10);	
 	canvas_draw_str_aligned(canvas, 12, 1, AlignLeft, AlignTop, "Mens Magistra");
+	canvas_set_font(canvas, FontSecondary);
 	
     // Draw HUD (top right)
     char time_str[16];
     uint32_t total_time;
     if(state->state == STATE_PLAYING) {
         total_time = state->elapsed_time + (furi_get_tick() - state->start_time);
+		if(total_time >= MAX_TIME_MS && state->state == STATE_PLAYING) total_time = MAX_TIME_MS;
     } else {
         total_time = state->elapsed_time;
     }
     uint32_t seconds = total_time / 1000;
     uint32_t minutes = seconds / 60;
     seconds = seconds % 60;
-    snprintf(time_str, sizeof(time_str), "T: %03lu:%02lu", minutes, seconds);
-    canvas_draw_str(canvas, 85, 7, time_str);
+    snprintf(time_str, sizeof(time_str), "T: %02lu:%02lu", minutes, seconds);
+    canvas_draw_str(canvas, HUD_X_POSITION, 7, time_str);
     
     char attempts_str[16];
     snprintf(attempts_str, sizeof(attempts_str), "A: %d(%d)", state->attempts_used, MAX_ATTEMPTS);
-    canvas_draw_str(canvas, 85, 16, attempts_str);
+    canvas_draw_str(canvas, HUD_X_POSITION, 16, attempts_str);
     
     // Draw current guess area
     int guess_y = 30;
@@ -286,7 +291,7 @@ static void draw_callback(Canvas* canvas, void* ctx) {
         
         // Draw cursor rectangle
         if(i == state->cursor_position && state->state == STATE_PLAYING) {
-            canvas_draw_rframe(canvas, x - 12, guess_y - 12, 24, 24, 2);
+            canvas_draw_rframe(canvas, x - 12, guess_y - 12, 25, 25, 2);
         }
         
         draw_peg(canvas, x, guess_y, PEG_RADIUS, state->current_guess[i]);
@@ -295,23 +300,6 @@ static void draw_callback(Canvas* canvas, void* ctx) {
     // Draw feedback area next to current guess
     if(state->attempts_used > 0 || state->state == STATE_WON || state->state == STATE_LOST) {
         draw_feedback(canvas, 110, guess_y - 8, state->feedback_history[state->attempts_used - 1]);
-    }
-    
-    // Draw previous guesses (scrollable history)
-    int history_start = 56;
-    int max_visible = 2;
-    int start_idx = (state->attempts_used > max_visible) ? state->attempts_used - max_visible : 0;
-    
-    for(int a = start_idx; a < state->attempts_used - 1 && a < start_idx + max_visible; a++) {
-        int y = history_start + (a - start_idx) * 20;
-        
-        // Draw guess
-        for(int i = 0; i < NUM_PEGS; i++) {
-            draw_peg(canvas, 15 + i * 25, y, 8, state->guess_history[a][i]);
-        }
-        
-        // Draw feedback
-        draw_feedback(canvas, 110, y - 6, state->feedback_history[a]);
     }
     
     // Draw status messages
@@ -340,10 +328,13 @@ static void draw_callback(Canvas* canvas, void* ctx) {
     
 	// Version info
 	canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str_aligned(canvas, 99, 55, AlignLeft, AlignBottom, "v0.1");    
+    canvas_draw_str_aligned(canvas, 128, 55, AlignRight, AlignBottom, "v0.1");    
 	// Draw navigation hint
+	canvas_draw_icon(canvas, 1, 55, &I_arrows);
+	canvas_draw_str_aligned(canvas, 11, 62, AlignLeft, AlignBottom, "Navigate");
+	
 	canvas_draw_icon(canvas, 121, 57, &I_back);
-	canvas_draw_str_aligned(canvas, 120, 63, AlignRight, AlignBottom, "Pause");
+	canvas_draw_str_aligned(canvas, 120, 63, AlignRight, AlignBottom, state->state == STATE_PAUSED ? "Exit" : "Pause");
 
     if(state->state == STATE_PLAYING && is_guess_complete(state) && is_guess_different(state)) {
         elements_button_center(canvas, "OK");
@@ -402,14 +393,15 @@ int32_t superhirn_main(void* p) {
             if(event.type == InputTypePress || event.type == InputTypeRepeat) {
                 if(event.key == InputKeyBack) {
                     if(event.type == InputTypePress) {
-                        // Short press - pause/unpause
-                        if(state->state == STATE_PLAYING) {
-                            state->state = STATE_PAUSED;
-                            state->elapsed_time += furi_get_tick() - state->start_time;
-                        } else if(state->state == STATE_PAUSED) {
-                            state->state = STATE_PLAYING;
-                            state->start_time = furi_get_tick();
-                        }
+						// Short press - pause (when playing) or exit (when paused)
+						if(state->state == STATE_PAUSED) {
+							// Exit when paused
+							running = false;
+						} else if(state->state == STATE_PLAYING) {
+							// Pause when playing
+							state->state = STATE_PAUSED;
+							state->elapsed_time += furi_get_tick() - state->start_time;
+						}
                     }
                 } else if(event.key == InputKeyLeft && state->state == STATE_PLAYING) {
                     if(state->cursor_position > 0) {
@@ -445,7 +437,7 @@ int32_t superhirn_main(void* p) {
                     // Long press - exit
                     running = false;
                 } else if(event.key == InputKeyOk) {
-                    // Long press - reveal code
+                    // Long press - reveal combination
                     if(state->state == STATE_PLAYING) {
                         state->elapsed_time += furi_get_tick() - state->start_time;
                         state->state = STATE_REVEAL;
@@ -462,6 +454,12 @@ int32_t superhirn_main(void* p) {
         // Update display for timer
         if(state->state == STATE_PLAYING) {
             view_port_update(view_port);
+            // Check time limit
+            uint32_t current_time = state->elapsed_time + (furi_get_tick() - state->start_time);
+            if(current_time >= MAX_TIME_MS) {
+                state->state = STATE_LOST;
+                state->elapsed_time = MAX_TIME_MS;
+            }		
         }
     }
     
