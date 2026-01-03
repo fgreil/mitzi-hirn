@@ -4,16 +4,24 @@
 #include <gui/elements.h>  // GUI elements library for button hints and UI components
 #include <stdlib.h>        // Standard library for rand(), malloc(), etc.
 #include <math.h>
-#include "hirn_icons.h"
+#include "mitzi_hirn_icons.h"
+
+#define TAG "Hirn"  // Tag for logging
 
 #define COLOR_REPEAT false  // Whether colors can repeat in the secret code
-#define NUM_COLORS 4        // Number of available colors
+#define NUM_COLORS 6        // Number of available colors
 #define NUM_PEGS 4          // Number of pegs in the code
-#define MAX_ATTEMPTS 99     // Maximum number of guessing attempts
-#define PEG_RADIUS 10       // Radius of main pegs (20px diameter)
-#define FEEDBACK_RADIUS 3   // Radius of feedback pegs
-#define HUD_X_POSITION 90   // X position for HUD (timer and attempts counter)
-#define MAX_TIME_MS (90 * 60 * 1000)  // Maximum time: 90 minutes in milliseconds
+#define PEG_Y_POSITION 22   // Vertical position for current guessing pegs
+#define PEG_X_POSITION 10   // Horizontal position
+#define FEEDBACK_RADIUS 3   
+#define MAX_ATTEMPTS 20     // Maximum number of guessing attempts
+#define CURSOR_SIZE 20      // Size of cursor box (width and height)
+#define HUD_X_POSITION 65   // X position for HUD (timer and attempts counter)
+#define MAX_TIME_MS (20 * 60 * 1000)  // Maximum time in milliseconds
+
+// ============================================================================
+// Enumerations
+// ============================================================================
 
 // Color patterns (fill styles)
 typedef enum {
@@ -42,6 +50,10 @@ typedef enum {
     STATE_REVEAL
 } GameState;
 
+// ============================================================================
+// Data Structures
+// ============================================================================
+
 // Application state
 typedef struct {
     GameState state;
@@ -57,8 +69,14 @@ typedef struct {
     FeedbackType feedback_history[MAX_ATTEMPTS][NUM_PEGS];
 } CodeBreakerState;
 
+// ============================================================================
+// Game Logic Functions
+// ============================================================================
+
 // Generate random secret code
 static void generate_secret_code(CodeBreakerState* state) {
+    FURI_LOG_I(TAG, "Generating secret code (COLOR_REPEAT=%d)", COLOR_REPEAT);
+    
     if(COLOR_REPEAT) {
         // Colors can repeat
         for(int i = 0; i < NUM_PEGS; i++) {
@@ -76,6 +94,10 @@ static void generate_secret_code(CodeBreakerState* state) {
             state->secret_code[i] = color;
         }
     }
+    
+    FURI_LOG_D(TAG, "Secret code: [%d, %d, %d, %d]", 
+               state->secret_code[0], state->secret_code[1], 
+               state->secret_code[2], state->secret_code[3]);
 }
 
 // Check if all pegs in current guess have been selected
@@ -104,6 +126,11 @@ static bool is_guess_different(CodeBreakerState* state) {
 
 // Evaluate the current guess and provide feedback
 static void evaluate_guess(CodeBreakerState* state) {
+    FURI_LOG_I(TAG, "Evaluating guess #%d: [%d, %d, %d, %d]", 
+               state->attempts_used + 1,
+               state->current_guess[0], state->current_guess[1],
+               state->current_guess[2], state->current_guess[3]);
+    
     bool secret_used[NUM_PEGS] = {false};
     bool guess_used[NUM_PEGS] = {false};
     int feedback_idx = 0;
@@ -135,6 +162,10 @@ static void evaluate_guess(CodeBreakerState* state) {
         }
     }
     
+    FURI_LOG_D(TAG, "Feedback: Black=%d, White=%d", 
+               feedback_idx > 0 && state->feedback_history[state->attempts_used][0] == FEEDBACK_BLACK ? 1 : 0,
+               feedback_idx);
+    
     // Check for win condition (all black pegs)
     bool won = true;
     for(int i = 0; i < NUM_PEGS; i++) {
@@ -154,11 +185,36 @@ static void evaluate_guess(CodeBreakerState* state) {
     if(won) {
         state->state = STATE_WON;
         state->elapsed_time += furi_get_tick() - state->start_time;
+        FURI_LOG_I(TAG, "Game won! Attempts: %d, Time: %lu ms", 
+                   state->attempts_used, state->elapsed_time);
     } else if(state->attempts_used >= MAX_ATTEMPTS) {
         state->state = STATE_LOST;
         state->elapsed_time += furi_get_tick() - state->start_time;
+        FURI_LOG_I(TAG, "Game lost! Max attempts reached.");
     }
     // Don't reset guess - keep previous colors for next attempt
+}
+
+// ============================================================================
+// Drawing Functions
+// ============================================================================
+
+// Draw modal dialog box with text
+static void draw_simple_modal(Canvas* canvas, const char* text) {
+	canvas_set_font(canvas, FontPrimary);
+    const int box_w = canvas_string_width(canvas, text) + 6;
+    const int box_h = 20;
+    const int box_x = 2;
+    const int box_y = 20;
+    // White filled rectangle
+    canvas_set_color(canvas, ColorWhite);
+    canvas_draw_box(canvas, box_x, box_y, box_w, box_h);
+    // Black border
+    canvas_set_color(canvas, ColorBlack);
+    canvas_draw_frame(canvas, box_x, box_y, box_w, box_h);
+    // Text inside
+    canvas_draw_str(canvas, box_x + 2, box_y + 14, text);
+	canvas_set_font(canvas, FontSecondary);
 }
 
 // Draw a filled circle with pattern
@@ -238,20 +294,25 @@ static void draw_peg(Canvas* canvas, int x, int y, int radius, PegColor color) {
 }
 
 // Draw feedback pegs (2x2 arrangement)
-static void draw_feedback(Canvas* canvas, int x, int y, FeedbackType feedback[NUM_PEGS]) {
-    int positions[4][2] = {{0, 0}, {8, 0}, {0, 8}, {8, 8}};
+static void draw_feedback(Canvas* canvas, int x, int y, FeedbackType feedback[NUM_PEGS], int radius) {
+    int spacing = radius * 2 + 2;  // Space between feedback pegs
+    int positions[4][2] = {{0, 0}, {spacing, 0}, {0, spacing}, {spacing, spacing}};
     
     for(int i = 0; i < NUM_PEGS; i++) {
         int px = x + positions[i][0];
         int py = y + positions[i][1];
         
         if(feedback[i] == FEEDBACK_BLACK) {
-            canvas_draw_disc(canvas, px, py, FEEDBACK_RADIUS);
+            canvas_draw_disc(canvas, px, py, radius);
         } else if(feedback[i] == FEEDBACK_WHITE) {
-            canvas_draw_circle(canvas, px, py, FEEDBACK_RADIUS);
+            canvas_draw_circle(canvas, px, py, radius);
         }
     }
 }
+
+// ============================================================================
+// GUI Callback Functions
+// ============================================================================
 
 // Draw callback
 static void draw_callback(Canvas* canvas, void* ctx) {
@@ -262,7 +323,7 @@ static void draw_callback(Canvas* canvas, void* ctx) {
 	// Draw header with icon and title
     canvas_set_font(canvas, FontPrimary);
 	canvas_draw_icon(canvas, 1, 1, &I_icon_10x10);	
-	canvas_draw_str_aligned(canvas, 12, 1, AlignLeft, AlignTop, "Hirn v0.1");
+	canvas_draw_str_aligned(canvas, 13, 1, AlignLeft, AlignTop, "HIRN v0.1");
 	canvas_set_font(canvas, FontSecondary);
 	
     // Draw HUD (top right)
@@ -270,7 +331,6 @@ static void draw_callback(Canvas* canvas, void* ctx) {
     uint32_t total_time;
     if(state->state == STATE_PLAYING) {
         total_time = state->elapsed_time + (furi_get_tick() - state->start_time);
-	
     } else {
         total_time = state->elapsed_time;
     }
@@ -278,44 +338,43 @@ static void draw_callback(Canvas* canvas, void* ctx) {
     uint32_t seconds = total_time / 1000;
     uint32_t minutes = seconds / 60;
     seconds = seconds % 60;
-    snprintf(time_str, sizeof(time_str), "T: %02lu:%02lu", minutes, seconds);
+    snprintf(time_str, sizeof(time_str), "A: %d/%d %02lu:%02lu", state->attempts_used, MAX_ATTEMPTS, minutes, seconds);
     canvas_draw_str(canvas, HUD_X_POSITION, 7, time_str);
     
-    char attempts_str[16];
-    snprintf(attempts_str, sizeof(attempts_str), "A: %d(%d)", state->attempts_used, MAX_ATTEMPTS);
-    canvas_draw_str(canvas, HUD_X_POSITION, 16, attempts_str);
-    
     // Draw current guess area
-    int guess_y = 30;
+    int peg_radius = CURSOR_SIZE / 2 - 2;  // Peg radius is slightly smaller than half cursor
+    int peg_spacing = CURSOR_SIZE;         // Pegs touch when cursors would touch
+    int feedback_radius = (CURSOR_SIZE / 8 > 2) ? CURSOR_SIZE / 8 : 3; // Feedback pegs scale with cursor, min 3
+    int guess_y = PEG_Y_POSITION;   // Vertical position
+
     for(int i = 0; i < NUM_PEGS; i++) {
-        int x = 15 + i * 25;
+        int x = PEG_X_POSITION + i * peg_spacing;
         
         // Draw cursor rectangle
         if(i == state->cursor_position && state->state == STATE_PLAYING) {
-            canvas_draw_rframe(canvas, x - 12, guess_y - 12, 25, 25, 2);
+            canvas_draw_rframe(canvas, x - CURSOR_SIZE/2, guess_y - CURSOR_SIZE/2, CURSOR_SIZE + 1, CURSOR_SIZE + 1, 2);
         }
         
-        draw_peg(canvas, x, guess_y, PEG_RADIUS, state->current_guess[i]);
+        draw_peg(canvas, x, guess_y, peg_radius, state->current_guess[i]);
     }
     
     // Draw feedback area next to current guess
     if(state->attempts_used > 0 || state->state == STATE_WON || state->state == STATE_LOST) {
-        draw_feedback(canvas, 110, guess_y - 8, state->feedback_history[state->attempts_used - 1]);
+		draw_feedback(canvas, PEG_X_POSITION + NUM_PEGS * peg_spacing + 5, guess_y - 5, state->feedback_history[state->attempts_used - 1], feedback_radius);
     }
     
-    // Draw status messages
+    // Construct status message
+	const char* modal_text = NULL;
     if(state->state == STATE_PAUSED) {
-        canvas_set_font(canvas, FontPrimary);
-        canvas_draw_str(canvas, 30, 120, "PAUSED");
-        canvas_set_font(canvas, FontSecondary);
+        modal_text = "Paused.";
     } else if(state->state == STATE_WON) {
-        canvas_set_font(canvas, FontPrimary);
-        canvas_draw_str(canvas, 20, 110, "YOU WON!");
-        canvas_set_font(canvas, FontSecondary);
+        modal_text = "You won!";
     } else if(state->state == STATE_LOST) {
-        canvas_set_font(canvas, FontPrimary);
-        canvas_draw_str(canvas, 15, 110, "GAME OVER");
-        canvas_set_font(canvas, FontSecondary);
+        if(total_time >= MAX_TIME_MS) {
+            modal_text = "Time out :-(";
+        } else {
+            modal_text = "No attempts left :-(";
+        }
     }
     
     // Draw secret code if revealed or game ended
@@ -326,16 +385,19 @@ static void draw_callback(Canvas* canvas, void* ctx) {
             draw_peg(canvas, 45 + i * 20, 120, 8, state->secret_code[i]);
         }
     }
-    
-	// Version info
-	canvas_set_font(canvas, FontSecondary);
-    // canvas_draw_str_aligned(canvas, 128, 55, AlignRight, AlignBottom, "v0.1");    
-	// Draw navigation hint
-	canvas_draw_icon(canvas, 1, 55, &I_arrows);
-	canvas_draw_str_aligned(canvas, 11, 62, AlignLeft, AlignBottom, "Navigate");
 	
-	canvas_draw_icon(canvas, 121, 57, &I_back);
-	canvas_draw_str_aligned(canvas, 120, 63, AlignRight, AlignBottom, state->state == STATE_PAUSED ? "Exit" : "Pause");
+    if(modal_text) {
+		draw_simple_modal(canvas, modal_text);
+		// When modal is shown, only show exit hint
+	    canvas_draw_icon(canvas, 121, 57, &I_back);
+	    canvas_draw_str_aligned(canvas, 120, 63, AlignRight, AlignBottom, "Exit");	
+   	} else {
+	    // Normal hints
+	    canvas_draw_icon(canvas, 1, 55, &I_arrows);
+	    canvas_draw_str_aligned(canvas, 11, 62, AlignLeft, AlignBottom, "Navigate");
+	    canvas_draw_icon(canvas, 121, 57, &I_back);
+	    canvas_draw_str_aligned(canvas, 120, 63, AlignRight, AlignBottom, "Pause");
+	}
 
     if(state->state == STATE_PLAYING && is_guess_complete(state) && is_guess_different(state)) {
         elements_button_center(canvas, "OK");
@@ -350,16 +412,19 @@ static void input_callback(InputEvent* input_event, void* ctx) {
     furi_message_queue_put(event_queue, input_event, FuriWaitForever);
 }
 
+// ============================================================================
+// Main Application Entry Point
+// ============================================================================
+
 // Main application entry point
 int32_t hirn_main(void* p) {
-    UNUSED(p);
-    
-    // Initialize random seed
+    UNUSED(p);    
+    FURI_LOG_I(TAG, "Starting HIRN game");
     srand(furi_get_tick());
-    
-    // Allocate state
-    CodeBreakerState* state = malloc(sizeof(CodeBreakerState));
+    FURI_LOG_D(TAG, "Random seed initialized with tick: %lu", furi_get_tick()); 
+        CodeBreakerState* state = malloc(sizeof(CodeBreakerState));
     memset(state, 0, sizeof(CodeBreakerState));
+    FURI_LOG_D(TAG, "State allocated and initialized"); // --------------------
     
     // Initialize game state
     state->state = STATE_PLAYING;
@@ -374,9 +439,9 @@ int32_t hirn_main(void* p) {
     }
     
     generate_secret_code(state);
-    
-    // Create event queue
+	FURI_LOG_D(TAG, "Generated code to be guessed by player");
     FuriMessageQueue* event_queue = furi_message_queue_alloc(8, sizeof(InputEvent));
+    FURI_LOG_D(TAG, "Event queue created");
     
     // Setup GUI
     Gui* gui = furi_record_open(RECORD_GUI);
@@ -384,10 +449,13 @@ int32_t hirn_main(void* p) {
     view_port_draw_callback_set(view_port, draw_callback, state);
     view_port_input_callback_set(view_port, input_callback, event_queue);
     gui_add_view_port(gui, view_port, GuiLayerFullscreen);
+    FURI_LOG_I(TAG, "GUI initialized and view port added");
     
     // Main loop
     InputEvent event;
     bool running = true;
+    
+    FURI_LOG_I(TAG, "Entering main game loop");
     
     while(running) {
         if(furi_message_queue_get(event_queue, &event, 100) == FuriStatusOk) {
@@ -397,9 +465,11 @@ int32_t hirn_main(void* p) {
 						// Short press - pause (when playing) or exit (when paused)
 						if(state->state == STATE_PAUSED) {
 							// Exit when paused
+                            FURI_LOG_I(TAG, "User exiting from pause menu");
 							running = false;
 						} else if(state->state == STATE_PLAYING) {
 							// Pause when playing
+                            FURI_LOG_I(TAG, "Game paused");
 							state->state = STATE_PAUSED;
 							state->elapsed_time += furi_get_tick() - state->start_time;
 						}
@@ -407,28 +477,35 @@ int32_t hirn_main(void* p) {
                 } else if(event.key == InputKeyLeft && state->state == STATE_PLAYING) {
                     if(state->cursor_position > 0) {
                         state->cursor_position--;
+                        FURI_LOG_D(TAG, "Cursor moved left to position %d", state->cursor_position);
                     }
                 } else if(event.key == InputKeyRight && state->state == STATE_PLAYING) {
                     if(state->cursor_position < NUM_PEGS - 1) {
                         state->cursor_position++;
+                        FURI_LOG_D(TAG, "Cursor moved right to position %d", state->cursor_position);
                     }
                 } else if(event.key == InputKeyUp && state->state == STATE_PLAYING) {
                     int current = state->current_guess[state->cursor_position];
                     current++;
                     if(current > NUM_COLORS) current = COLOR_NONE;
                     state->current_guess[state->cursor_position] = current;
+                    FURI_LOG_D(TAG, "Color changed to %d at position %d", current, state->cursor_position);
                 } else if(event.key == InputKeyDown && state->state == STATE_PLAYING) {
                     int current = state->current_guess[state->cursor_position];
                     current--;
                     if(current < COLOR_NONE) current = NUM_COLORS;
                     state->current_guess[state->cursor_position] = current;
+                    FURI_LOG_D(TAG, "Color changed to %d at position %d", current, state->cursor_position);
                 } else if(event.key == InputKeyOk) {
                     if(state->state == STATE_PLAYING && is_guess_complete(state) && is_guess_different(state)) {
+                        FURI_LOG_I(TAG, "Submitting guess");
                         evaluate_guess(state);
                     } else if(state->state == STATE_PAUSED) {
+                        FURI_LOG_I(TAG, "Game resumed");
                         state->state = STATE_PLAYING;
                         state->start_time = furi_get_tick();
                     } else if(state->state == STATE_REVEAL) {
+                        FURI_LOG_I(TAG, "Returning to game from reveal");
                         state->state = STATE_PLAYING;
                         state->start_time = furi_get_tick();
                     }
@@ -436,13 +513,16 @@ int32_t hirn_main(void* p) {
             } else if(event.type == InputTypeLong) {
                 if(event.key == InputKeyBack) {
                     // Long press - exit
+                    FURI_LOG_I(TAG, "User exiting via long press");
                     running = false;
                 } else if(event.key == InputKeyOk) {
                     // Long press - reveal combination
                     if(state->state == STATE_PLAYING) {
+                        FURI_LOG_W(TAG, "Secret code revealed by user");
                         state->elapsed_time += furi_get_tick() - state->start_time;
                         state->state = STATE_REVEAL;
                     } else if(state->state == STATE_REVEAL) {
+                        FURI_LOG_I(TAG, "Hiding secret code");
                         state->state = STATE_PLAYING;
                         state->start_time = furi_get_tick();
                     }
@@ -456,11 +536,11 @@ int32_t hirn_main(void* p) {
         if(state->state == STATE_PLAYING) {
             view_port_update(view_port);
 		}
-		
         // Check time limit
         if(state->state == STATE_PLAYING) {
             uint32_t current_time = state->elapsed_time + (furi_get_tick() - state->start_time);
             if(current_time >= MAX_TIME_MS) {
+                FURI_LOG_W(TAG, "Time limit reached - game lost");
                 state->state = STATE_LOST;
                 state->elapsed_time = MAX_TIME_MS;
                 view_port_update(view_port);
@@ -468,13 +548,13 @@ int32_t hirn_main(void* p) {
         }
 		
     }
-    
-    // Cleanup
+    FURI_LOG_I(TAG, "Cleaning up and exiting");
     gui_remove_view_port(gui, view_port);
     view_port_free(view_port);
     furi_record_close(RECORD_GUI);
     furi_message_queue_free(event_queue);
     free(state);
+    FURI_LOG_I(TAG, "HIRN game stopped");
     
     return 0;
 }

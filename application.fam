@@ -37,6 +37,7 @@ App(
     fap_icon_assets="images",
  
     # Available categories: Main, GPIO, Sub-GHz, RFID, NFC, Infrared, Misc, Games, Tools, Settings, USB
-    fap_category="",
+    fap_category="Games",
+	
     fap_version=(0,1,0)
 )
