@@ -17,7 +17,7 @@ App(
     # Preprocessor definitions added during compilation
     cdefines=["APP_HIRN"],
 	
-    sources=["superhirn.c"],
+    sources=["hirn.c"],
 
 	 fap_author="F Greil",
     fap_weburl="https://github.com/fgreil/mitzi-hirn",
