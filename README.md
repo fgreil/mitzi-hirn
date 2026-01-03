@@ -18,10 +18,20 @@ The constant `COLOR_REPEAT` controls whether a color can repeat or not.  [defaul
 After submitting a guess, the colors remain in the current guess area for the next attempt. The "OK" hint only appears when all pegs have colors **and** the guess is different from the previous one.
 
 On the top right we have the heads-up-display (HUD): 
-* `T: [MMM:SS]` is timer
+* `T: [MM:SS]` is timer
 * `A: [number of attempts](12)`
 
-The game continues until the player either correctly guesses the full sequence or runs out of attempts.
+The game continues until the player either correctly guesses the full sequence, runs out of attempts, or wasted 90 minutes.
+
+## Colors and patterns
+We defined:
+* Empty `COLOR_NONE`.
+* **Red.** Solid black fill
+* **Green.** Horizontal lines
+* **Blue.** Vertical lines
+* **Yellow.** Diagonal lines, pointing NE (/)
+* **Purple.** Diagonal lines pointing NW
+* **Orange.** Cross-hatch pattern
 
 ## Version history
 See [changelog.md](changelog.md)
