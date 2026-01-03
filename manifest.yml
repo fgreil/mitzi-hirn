@@ -2,7 +2,7 @@ sourcecode:
   type: git
   location:
     ## Specify the git URL of your repository
-    origin: https://github.com/fgreil/mitzi-mens-magistra.git
+    origin: https://github.com/fgreil/mitzi-hirn.git
     ## Put the full commit SHA of the commit with the app's code you want to submit
     commit_sha: tbd
     ## (Optional) If your app is located in a subdirectory of the repository, specify it here
