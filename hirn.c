@@ -350,7 +350,7 @@ static void input_callback(InputEvent* input_event, void* ctx) {
 }
 
 // Main application entry point
-int32_t superhirn_main(void* p) {
+int32_t hirn_main(void* p) {
     UNUSED(p);
     
     // Initialize random seed
