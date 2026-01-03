@@ -15,6 +15,8 @@ A one-player logic game where Flipper Zero creates a secret color code with 4 sy
 ## More info
 The constant `COLOR_REPEAT` controls whether a color can repeat or not.  [default: FALSE]). When guessing, the user has to adjust the color of four 20px diameter circles. Colors are represented by different fill pattern. Empty, non-filled circles are reserved and mean that the user has not chosen a color yet.
 
+After submitting a guess, the colors remain in the current guess area for the next attempt. The "OK" hint only appears when all pegs have colors **and** the guess is different from the previous one.
+
 On the top right we have the heads-up-display (HUD): 
 * `T: [MMM:SS]` is timer
 * `A: [number of attempts](12)`
