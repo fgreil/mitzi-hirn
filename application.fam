@@ -3,7 +3,7 @@ App(
     appid="mitzi_hirn",
 
     # What users will see when browsing apps
-    name="Mens Magistra: Combo-cracking",
+    name="Hirn: Cracking color-codes",
 
     # Description for the Flipper Application catalogue
     fap_description="A deduction game to crack a 4-digit code",
@@ -15,7 +15,7 @@ App(
     entry_point="hirn_main",
 
     # Preprocessor definitions added during compilation
-    cdefines=["APP_MENS_MAGISTRA"],
+    cdefines=["APP_HIRN"],
 	
     sources=["superhirn.c"],
 
