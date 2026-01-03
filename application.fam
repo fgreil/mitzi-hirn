@@ -30,15 +30,13 @@ App(
     # Stack memory allocated for the app's thread (in bytes). 2KB is enough here.
     stack_size=2 * 1024,
 
-   # Format of the menu icon: Black-and-white PNG (=1-bit color depth), 10x10 pixel
+    # Format of the menu icon: Black-and-white PNG(=1-bit color depth), 10x10 pixel
     fap_icon="images/icon_10x10.png",
 
     # Path to the app icon displayed in the menu
     fap_icon_assets="images",
  
     # Available categories: Main, GPIO, Sub-GHz, RFID, NFC, Infrared, Misc, Games, Tools, Settings, USB
-    fap_category="Games",
-
-    # Version number
+    fap_category="",
     fap_version=(0,1,0)
 )

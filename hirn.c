@@ -4,7 +4,7 @@
 #include <gui/elements.h>  // GUI elements library for button hints and UI components
 #include <stdlib.h>        // Standard library for rand(), malloc(), etc.
 #include <math.h>
-#include <mitzi_mens_magistra_icons.h>
+#include "hirn_icons.h"
 
 #define COLOR_REPEAT false  // Whether colors can repeat in the secret code
 #define NUM_COLORS 4        // Number of available colors
@@ -262,7 +262,7 @@ static void draw_callback(Canvas* canvas, void* ctx) {
 	// Draw header with icon and title
     canvas_set_font(canvas, FontPrimary);
 	canvas_draw_icon(canvas, 1, 1, &I_icon_10x10);	
-	canvas_draw_str_aligned(canvas, 12, 1, AlignLeft, AlignTop, "Mens Magistra");
+	canvas_draw_str_aligned(canvas, 12, 1, AlignLeft, AlignTop, "Hirn v0.1");
 	canvas_set_font(canvas, FontSecondary);
 	
     // Draw HUD (top right)
@@ -270,10 +270,11 @@ static void draw_callback(Canvas* canvas, void* ctx) {
     uint32_t total_time;
     if(state->state == STATE_PLAYING) {
         total_time = state->elapsed_time + (furi_get_tick() - state->start_time);
-		if(total_time >= MAX_TIME_MS && state->state == STATE_PLAYING) total_time = MAX_TIME_MS;
+	
     } else {
         total_time = state->elapsed_time;
     }
+	if(total_time > MAX_TIME_MS) total_time = MAX_TIME_MS;
     uint32_t seconds = total_time / 1000;
     uint32_t minutes = seconds / 60;
     seconds = seconds % 60;
@@ -328,7 +329,7 @@ static void draw_callback(Canvas* canvas, void* ctx) {
     
 	// Version info
 	canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str_aligned(canvas, 128, 55, AlignRight, AlignBottom, "v0.1");    
+    // canvas_draw_str_aligned(canvas, 128, 55, AlignRight, AlignBottom, "v0.1");    
 	// Draw navigation hint
 	canvas_draw_icon(canvas, 1, 55, &I_arrows);
 	canvas_draw_str_aligned(canvas, 11, 62, AlignLeft, AlignBottom, "Navigate");
@@ -454,13 +455,18 @@ int32_t hirn_main(void* p) {
         // Update display for timer
         if(state->state == STATE_PLAYING) {
             view_port_update(view_port);
-            // Check time limit
+		}
+		
+        // Check time limit
+        if(state->state == STATE_PLAYING) {
             uint32_t current_time = state->elapsed_time + (furi_get_tick() - state->start_time);
             if(current_time >= MAX_TIME_MS) {
                 state->state = STATE_LOST;
                 state->elapsed_time = MAX_TIME_MS;
-            }		
+                view_port_update(view_port);
+            }
         }
+		
     }
     
     // Cleanup
