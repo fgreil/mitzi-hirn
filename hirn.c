@@ -301,11 +301,17 @@ static void draw_feedback(Canvas* canvas, int x, int y, FeedbackType feedback[NU
     for(int i = 0; i < NUM_PEGS; i++) {
         int px = x + positions[i][0];
         int py = y + positions[i][1];
-        
+        canvas_draw_circle(canvas, px, py, radius); // draw circle outline
         if(feedback[i] == FEEDBACK_BLACK) {
             canvas_draw_disc(canvas, px, py, radius);
-        } else if(feedback[i] == FEEDBACK_WHITE) {
-            canvas_draw_circle(canvas, px, py, radius);
+        } else if(feedback[i] == FEEDBACK_WHITE) { // grey dot pattern fill
+            for(int dy = -radius; dy <= radius; dy += 2) {
+                for(int dx = -radius; dx <= radius; dx += 2) {
+                    if(dx * dx + dy * dy <= radius * radius) {
+                        canvas_draw_dot(canvas, px + dx, py + dy);
+                    }
+                }
+            }
         }
     }
 }
@@ -357,12 +363,18 @@ static void draw_callback(Canvas* canvas, void* ctx) {
         
         draw_peg(canvas, x, guess_y, peg_radius, state->current_guess[i]);
     }
-    
-    // Draw feedback area next to current guess
-    if(state->attempts_used > 0 || state->state == STATE_WON || state->state == STATE_LOST) {
-		draw_feedback(canvas, PEG_X_POSITION + NUM_PEGS * peg_spacing + 5, guess_y - 5, state->feedback_history[state->attempts_used - 1], feedback_radius);
-    }
-    
+        
+	// Draw last guess from history (directly below current guess)
+	if(state->attempts_used > 0) {
+		int history_y = guess_y + peg_spacing;  // Below current guess with spacing
+		for(int i = 0; i < NUM_PEGS; i++) {
+			int x = PEG_X_POSITION + i * peg_spacing;
+			draw_peg(canvas, x, history_y, peg_radius - 2, state->guess_history[state->attempts_used - 1][i]);
+		}
+    draw_feedback(canvas, PEG_X_POSITION + NUM_PEGS * peg_spacing + 5, history_y - 5, state->feedback_history[state->attempts_used - 1], feedback_radius);
+}
+	
+	
     // Construct status message
 	const char* modal_text = NULL;
     if(state->state == STATE_PAUSED) {
