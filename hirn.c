@@ -329,7 +329,7 @@ static void draw_callback(Canvas* canvas, void* ctx) {
 	// Draw header with icon and title
     canvas_set_font(canvas, FontPrimary);
 	canvas_draw_icon(canvas, 1, 1, &I_icon_10x10);	
-	canvas_draw_str_aligned(canvas, 13, 1, AlignLeft, AlignTop, "HIRN v0.1");
+	canvas_draw_str_aligned(canvas, 13, 1, AlignLeft, AlignTop, "HIRN");
 	canvas_set_font(canvas, FontSecondary);
 	
     // Draw HUD (top right)
@@ -344,8 +344,10 @@ static void draw_callback(Canvas* canvas, void* ctx) {
     uint32_t seconds = total_time / 1000;
     uint32_t minutes = seconds / 60;
     seconds = seconds % 60;
-    snprintf(time_str, sizeof(time_str), "A: %d/%d %02lu:%02lu", state->attempts_used, MAX_ATTEMPTS, minutes, seconds);
+    snprintf(time_str, sizeof(time_str), "A: %d(%d) %02lu:%02lu", state->attempts_used, MAX_ATTEMPTS, minutes, seconds);
     canvas_draw_str(canvas, HUD_X_POSITION, 7, time_str);
+	canvas_draw_str_aligned(canvas, 127, 8, AlignRight, AlignTop, "f418.eu"); 
+    canvas_draw_str_aligned(canvas, 127, 16, AlignRight, AlignTop, "v0.2"); 	
     
     // Draw current guess area
     int peg_radius = CURSOR_SIZE / 2 - 2;  // Peg radius is slightly smaller than half cursor
@@ -415,6 +417,8 @@ static void draw_callback(Canvas* canvas, void* ctx) {
         elements_button_center(canvas, "OK");
     } else if(state->state == STATE_PAUSED) {
         elements_button_center(canvas, "Resume");
+    } else if(state->state == STATE_WON || state->state == STATE_LOST) {
+        elements_button_center(canvas, "Play again");
     }
 }
 
@@ -520,7 +524,21 @@ int32_t hirn_main(void* p) {
                         FURI_LOG_I(TAG, "Returning to game from reveal");
                         state->state = STATE_PLAYING;
                         state->start_time = furi_get_tick();
-                    }
+                    } else if(state->state == STATE_WON || state->state == STATE_LOST) {
+						// Reset game
+						FURI_LOG_I(TAG, "Resetting game for new round");
+						state->state = STATE_PLAYING;
+						state->cursor_position = 0;
+						state->attempts_used = 0;
+						state->start_time = furi_get_tick();
+						state->elapsed_time = 0;
+					
+						// Clear current guess
+						for(int i = 0; i < NUM_PEGS; i++) {
+							state->current_guess[i] = COLOR_NONE;
+						}                   
+						generate_secret_code(state);
+					}
                 }
             } else if(event.type == InputTypeLong) {
                 if(event.key == InputKeyBack) {

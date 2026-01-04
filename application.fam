@@ -3,7 +3,7 @@ App(
     appid="mitzi_hirn",
 
     # What users will see when browsing apps
-    name="Hirn: Cracking color-codes",
+    name="Hirn - Crack color codes",
 
     # Description for the Flipper Application catalogue
     fap_description="A deduction game to crack a 4-digit code",
@@ -39,5 +39,5 @@ App(
     # Available categories: Main, GPIO, Sub-GHz, RFID, NFC, Infrared, Misc, Games, Tools, Settings, USB
     fap_category="Games",
 	
-    fap_version=(0,1,0)
+    fap_version=(0,2,0)
 )
