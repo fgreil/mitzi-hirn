@@ -94,8 +94,7 @@ static void generate_secret_code(CodeBreakerState* state) {
             state->secret_code[i] = color;
         }
     }
-    
-    FURI_LOG_D(TAG, "Secret code: [%d, %d, %d, %d]", 
+    FURI_LOG_I(TAG, "Secret code: [%d, %d, %d, %d]", 
                state->secret_code[0], state->secret_code[1], 
                state->secret_code[2], state->secret_code[3]);
 }
@@ -108,6 +107,20 @@ static bool is_guess_complete(CodeBreakerState* state) {
         }
     }
     return true;
+}
+
+static void reset_game_state(CodeBreakerState* state) {
+    state->state = STATE_PLAYING;
+    state->cursor_position = 0;
+    state->attempts_used = 0;
+    state->start_time = furi_get_tick();
+    state->elapsed_time = 0;
+    
+    for(int i = 0; i < NUM_PEGS; i++) {
+        state->current_guess[i] = COLOR_NONE;
+    }
+    
+    generate_secret_code(state);
 }
 
 // Check if current guess is different from previous guess
@@ -428,6 +441,9 @@ static void input_callback(InputEvent* input_event, void* ctx) {
     furi_message_queue_put(event_queue, input_event, FuriWaitForever);
 }
 
+
+
+
 // ============================================================================
 // Main Application Entry Point
 // ============================================================================
@@ -441,21 +457,8 @@ int32_t hirn_main(void* p) {
         CodeBreakerState* state = malloc(sizeof(CodeBreakerState));
     memset(state, 0, sizeof(CodeBreakerState));
     FURI_LOG_D(TAG, "State allocated and initialized"); // --------------------
-    
-    // Initialize game state
-    state->state = STATE_PLAYING;
-    state->cursor_position = 0;
-    state->attempts_used = 0;
-    state->start_time = furi_get_tick();
-    state->elapsed_time = 0;
-    
-    // Only initially empty - after first guess, colors persist
-    for(int i = 0; i < NUM_PEGS; i++) {
-        state->current_guess[i] = COLOR_NONE;
-    }
-    
-    generate_secret_code(state);
-	FURI_LOG_D(TAG, "Generated code to be guessed by player");
+    reset_game_state(state);
+
     FuriMessageQueue* event_queue = furi_message_queue_alloc(8, sizeof(InputEvent));
     FURI_LOG_D(TAG, "Event queue created");
     
@@ -527,17 +530,7 @@ int32_t hirn_main(void* p) {
                     } else if(state->state == STATE_WON || state->state == STATE_LOST) {
 						// Reset game
 						FURI_LOG_I(TAG, "Resetting game for new round");
-						state->state = STATE_PLAYING;
-						state->cursor_position = 0;
-						state->attempts_used = 0;
-						state->start_time = furi_get_tick();
-						state->elapsed_time = 0;
-					
-						// Clear current guess
-						for(int i = 0; i < NUM_PEGS; i++) {
-							state->current_guess[i] = COLOR_NONE;
-						}                   
-						generate_secret_code(state);
+						reset_game_state(state);
 					}
                 }
             } else if(event.type == InputTypeLong) {
