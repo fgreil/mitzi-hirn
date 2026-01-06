@@ -6,8 +6,8 @@ A simple Flipper Zero combination cracking game.
 A one-player logic game where Flipper Zero creates a secret color code with 4 symols of 6 different colors . The user has to guess it in the fewest attempts. She/He receives clues: Black pegs for correct color/position, white pegs for correct color/wrong position.
 
 ## Usage
-- **Left/Right**: Move Puck-girl through the maze
-- **Up/Down**: Restart game (when game over or won)
+- **Left/Right**: Move cursor from peg to peg
+- **Up/Down**: Change color of selected peg
 - **OK**: Send guess for checking (only possible if all four digits have been populate).
 - **Long OK**: Give up, i.e. reveal the combination
 - **Back Button**: Pauses game or (when held) exits
