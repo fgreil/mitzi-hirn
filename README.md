@@ -3,7 +3,7 @@ A simple Flipper Zero combination cracking game.
 
 <img alt="Hirn Screen"  src="screenshots/MainScreen.png" width="40%" />
 
-A one-player logic game where Flipper Zero creates a secret color code with 4 symols of 6 different colors . The user has to guess it in the fewest attempts. She/He receives clues: Black pegs for correct color/position, grey/dotted pegs for correct color/wrong position.
+A one-player logic game where Flipper Zero creates a secret color code with 4 sybmols of 6 different colors. The user has to guess it in the fewest attempts. She/He receives clues: Black pegs for correct color/position, grey/dotted pegs for correct color/wrong position.
 
 ## Usage
 - **Left/Right**: Move cursor from peg to peg
